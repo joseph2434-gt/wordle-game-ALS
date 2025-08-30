@@ -88,6 +88,61 @@
   const solution = ANSWERS[dailyIndex()];
   const seedId = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, dateStyle: 'short' }).format(todayLocal()) + ":" + solution;
   const past = state.history[seedId] || { rows: [], done:false, win:false };
+  // --- Hint fetch + lightweight cache (uses dictionaryapi.dev) ---
+const HINT_CACHE_KEY = "wordle-hints-v1";
+
+function getHintCache() {
+  try { return JSON.parse(localStorage.getItem(HINT_CACHE_KEY) || "{}"); }
+  catch (e) { return {}; }
+}
+function setHintCache(word, hint) {
+  try {
+    const c = getHintCache();
+    c[word] = hint;
+    localStorage.setItem(HINT_CACHE_KEY, JSON.stringify(c));
+  } catch (e) { /* ignore */ }
+}
+
+/**
+ * Load a short hint (first sentence) for `word` and put it into #hint.
+ * Uses dictionaryapi.dev (no API key). Caches the result in localStorage.
+ */
+async function loadHint(word) {
+  const el = document.getElementById("hint");
+  if (!el) return;
+  if (!word) { el.textContent = ""; return; }
+
+  const cache = getHintCache();
+  if (cache[word]) {
+    el.textContent = cache[word];
+    return;
+  }
+
+  el.textContent = "Loading hint…";
+  try {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`);
+    if (!res.ok) throw new Error("no entry");
+    const data = await res.json();
+    const def = data?.[0]?.meanings?.[0]?.definitions?.[0]?.definition;
+    if (def) {
+      // Use only the first sentence (so the hint is short)
+      const first = def.split(/[.?!]/)[0].trim();
+      const hintText = first ? (first.charAt(0).toUpperCase() + first.slice(1)) : "";
+      el.textContent = hintText;
+      setHintCache(word, hintText);
+    } else {
+      el.textContent = ""; // or "No hint available."
+      setHintCache(word, "");
+    }
+  } catch (err) {
+    console.warn("Hint fetch failed", err);
+    el.textContent = ""; // silent failure so UI isn't noisy
+  }
+}
+
+// Call it for the daily word:
+loadHint(solution);
+
 
   // ===== DOM build =====
   const board = $("#board");
