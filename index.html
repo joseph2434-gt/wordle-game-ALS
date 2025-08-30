@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wordle-ish</title>
+  <meta name="description" content="A clean, accessible Wordle-style game." />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="left">
+      <button id="btn-help" aria-label="How to play" title="How to play">?</button>
+    </div>
+    <h1 aria-label="Game title">Wordle‑ish</h1>
+    <div class="right">
+      <button id="btn-stats" aria-label="Statistics" title="Statistics">★</button>
+      <button id="btn-settings" aria-label="Settings" title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="board" id="board" aria-label="Letter grid" aria-live="polite"></section>
+    <section class="keyboard" id="keyboard" aria-label="On‑screen keyboard"></section>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <!-- Dialogs -->
+  <dialog id="helpDialog" aria-labelledby="helpTitle">
+    <h2 id="helpTitle">How to play</h2>
+    <p>Guess the <strong>5‑letter word</strong> in 6 tries. Each guess must be a real word. After you submit, the tiles will show how close your guess was:</p>
+    <ul>
+      <li><span class="tile example correct">W</span> Correct letter in the <em>right</em> spot.</li>
+      <li><span class="tile example present">I</span> Letter is in the word but in the <em>wrong</em> spot.</li>
+      <li><span class="tile example absent">N</span> Letter is not in the word.</li>
+    </ul>
+    <p>Try Hard Mode to lock in revealed hints. Share your score with friends!</p>
+    <form method="dialog"><button>Close</button></form>
+  </dialog>
+
+  <dialog id="statsDialog" aria-labelledby="statsTitle">
+    <h2 id="statsTitle">Statistics</h2>
+    <div id="stats"></div>
+    <form method="dialog"><button>Close</button></form>
+  </dialog>
+
+  <dialog id="settingsDialog" aria-labelledby="settingsTitle">
+    <h2 id="settingsTitle">Settings</h2>
+    <label class="switch"><input type="checkbox" id="darkMode"><span>Dark mode</span></label>
+    <label class="switch"><input type="checkbox" id="highContrast"><span>High contrast (color‑blind)</span></label>
+    <label class="switch"><input type="checkbox" id="hardMode"><span>Hard mode</span></label>
+    <p class="hint">Daily puzzle is based on your local date in Asia/Manila.</p>
+    <form method="dialog"><button>Close</button></form>
+  </dialog>
+
+  <script src="words.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
