@@ -1,8 +1,13 @@
-/* Wordle-ish game logic */
+/* Wordle-ish game logic (improved win message & reveal timing) */
 (() => {
   // ===== Utilities =====
   const $ = sel => document.querySelector(sel);
   const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+  // Animation timing & input lock
+  const REVEAL_STEP_MS = 220;     // per tile flip delay
+  const REVEAL_FINISH_MS = 1200;  // total reveal duration buffer
+  let inputLocked = false;
 
   const TZ = "Asia/Manila";
   const todayLocal = () => {
@@ -44,36 +49,17 @@
   // ===== Words / Daily seed =====
   const ANSWERS = window.WORDLEISH_ANSWERS || [
     "ARISE","TEACH","LIGHT","SHARE","CRANE","PLANT","BRAVE","QUICK","SWEET","SMILE",
-  "TRACK","CLOUD","MANGO","NERVE","DRINK","SUGAR","METAL","RIVER","ROUTE","SCORE",
-  "EARTH","HEART","POINT","SOUND","NINJA","PARTY","FAITH","CHAIR","STONE","TIGER",
-  "PANDA","WATER","HONEY","PIXEL","FRAME","PEACH","BREAD","PHONE","CABLE","ULTRA",
-  "ALPHA","NORTH","SOUTH","EASTS","WESTS","OTHER","WORDS","LOREM","IPSUM","aback", "abase", "abate", "abbey", "abbot", "abide", "abled", "about", "above", "abuse",
-  "acorn", "acrid", "actor", "acute", "adage", "adapt", "adept", "admin", "admit", "adopt",
-  "adult", "affix", "again", "agent", "agile", "aging", "agree", "ahead", "aisle", "alarm",
-  "album", "alert", "alien", "align", "alike", "alive", "alloy", "allow", "alone", "along",
-  "altar", "alter", "amaze", "amber", "ample", "angel", "anger", "angle", "angry", "apart",
-  "apple", "apply", "apron", "arena", "argue", "arise", "armor", "arose", "array", "arrow",
-  "aside", "asset", "audio", "audit", "avoid", "awake", "award", "aware", "awful", "axiom",
-  "bacon", "badge", "bagel", "baker", "balmy", "banjo", "basic", "batch", "beach", "beard",
-  "beast", "begin", "being", "belly", "below", "bench", "berry", "birth", "black", "blade",
-  "blame", "blank", "blast", "blaze", "bleak", "blend", "bless", "blind", "blink", "block",
-  "blood", "bloom", "blown", "board", "boast", "bonus", "boost", "booth", "bound", "brain",
-  "brake", "brand", "brave", "bread", "break", "breed", "brick", "bride", "brief", "bring",
-  "broad", "broke", "brown", "brush", "buddy", "build", "built", "bunch", "burst", "buyer",
-  "cabin", "cable", "camel", "candy", "canoe", "carry", "carve", "cause", "cease", "chain",
-  "chair", "chant", "chaos", "charm", "chart", "chase", "cheap", "cheat", "check", "cheek",
-  "cheer", "chess", "chest", "chief", "child", "chill", "china", "choir", "chose", "chunk",
-  "cigar", "claim", "class", "clean", "clear", "clerk", "click", "cliff", "climb", "clock",
-  "close", "cloth", "cloud", "coach", "coast", "color", "comic", "coral", "couch", "could",
-  "count", "court", "cover", "crack", "craft", "crash", "crazy", "cream", "creek", "crest",
-  "crime", "crisp", "cross", "crowd", "crown", "crush", "curve", "cycle"
+    "TRACK","CLOUD","MANGO","NERVE","DRINK","SUGAR","METAL","RIVER","ROUTE",
+    "SCORE","EARTH","HEART","POINT","SOUND","NINJA","PARTY","FAITH","CHAIR","STONE",
+    "TIGER","PANDA","WATER","HONEY","PIXEL","FRAME","PEACH","BREAD","PHONE","CABLE",
+    "ULTRA","ALPHA","NORTH","SOUTH","EASTS","WESTS","OTHER","WORDS","LOREM","IPSUM"
   ].filter(w => w.length === 5);
 
   const VALIDATE_STRICT = false; // set true if you later supply a large dictionary
   const VALID_SET = new Set(ANSWERS);
 
   function dailyIndex() {
-    const epoch = new Date("2021-06-19T00:00:00+08:00"); // first Wordle‑like date
+    const epoch = new Date("2021-06-19T00:00:00+08:00"); // first Wordle-like date
     const t0 = epoch.getTime();
     const tn = todayLocal().getTime();
     const diffDays = Math.floor((tn - t0) / (24*3600*1000));
@@ -106,7 +92,6 @@
   layout.forEach((line, i) => {
     const row = document.createElement("div");
     row.className = "krow";
-    const spans = i === 0 ? 20/10 : (i===1 ? 20/9 : 20/9);
     [...line].forEach(ch => {
       const key = document.createElement("button");
       key.className = "key";
@@ -141,7 +126,10 @@
   // restore evaluated rows if any
   if (past.rows.length) {
     past.rows.forEach((word, r) => revealRow(word, r, false));
-    if (past.done) lockGame(past.win);
+    if (past.done) {
+      lockGame(past.win);
+      if (past.win) setTimeout(()=>toast("Already solved today’s word ✅"), 250);
+    }
   }
 
   function setThemeHandlers() {
@@ -180,6 +168,7 @@
   });
 
   function handleKey(k) {
+    if (inputLocked) return;
     if (past.done) return;
     if (k === "⌫") {
       if (colIndex>0) {
@@ -202,21 +191,24 @@
   }
 
   function submitRow() {
+    if (inputLocked) return;
+    inputLocked = true;
+
     const word = grid[rowIndex].join("");
-    if (word.length < 5) { shakeRow(rowIndex); toast("Not enough letters"); return; }
-    if (VALIDATE_STRICT && !VALID_SET.has(word)) { shakeRow(rowIndex); toast("Not in word list"); return; }
+    if (word.length < 5) { shakeRow(rowIndex); toast("Not enough letters"); inputLocked = false; return; }
+    if (VALIDATE_STRICT && !VALID_SET.has(word)) { shakeRow(rowIndex); toast("Not in word list"); inputLocked = false; return; }
 
     if (state.hard && rowIndex>0) {
       // enforce known hints
       for (let i=0;i<5;i++) {
         if (locks[i] && word[i] !== locks[i]) {
-          shakeRow(rowIndex); toast("Hard mode: keep revealed letters");
+          shakeRow(rowIndex); toast("Hard mode: keep revealed letters"); inputLocked = false;
           return;
         }
       }
       for (let ch in known) {
         const count = [...word].filter(c => c===ch).length;
-        if (count < known[ch]) { shakeRow(rowIndex); toast(`Hard: include ${ch}`); return; }
+        if (count < known[ch]) { shakeRow(rowIndex); toast(`Hard: include ${ch}`); inputLocked = false; return; }
       }
     }
 
@@ -225,11 +217,11 @@
     saveProgress();
 
     if (word === solution) {
-      endGame(true);
+      setTimeout(() => endGame(true, rowIndex + 1), REVEAL_FINISH_MS);
     } else if (rowIndex === 5) {
-      endGame(false);
+      setTimeout(() => endGame(false, 6), REVEAL_FINISH_MS);
     } else {
-      rowIndex++; colIndex=0;
+      setTimeout(() => { inputLocked = false; rowIndex++; colIndex=0; }, REVEAL_FINISH_MS);
     }
   }
 
@@ -273,7 +265,7 @@
           tile.classList.remove("flip");
           tile.classList.add(status);
         }, 250);
-      }, animate ? i*220 : 0);
+      }, animate ? i*REVEAL_STEP_MS : 0);
     });
     // keyboard status
     for (let i=0;i<5;i++) {
@@ -305,32 +297,35 @@
     setTimeout(()=>el.classList.remove("show"), ms);
   }
 
-  function endGame(win) {
+  function endGame(win, tries) {
     past.done = true; past.win = !!win;
     lockGame(win);
+    if (win) {
+      toast(`Correct! Solved in ${tries}/6 🎉`, 1500);
+    } else {
+      toast(`The word was ${solution}`, 1800);
+    }
     // update stats
     state.stats.played += 1;
     if (win) {
       state.stats.wins += 1;
       state.stats.streak += 1;
       state.stats.maxStreak = Math.max(state.stats.maxStreak, state.stats.streak);
-      const tries = rowIndex+1;
-      state.stats.dist[tries] = (state.stats.dist[tries]||0) + 1;
-      setTimeout(()=>{
-        share(tries);
-      }, 950);
+      const t = tries || (rowIndex+1);
+      state.stats.dist[t] = (state.stats.dist[t]||0) + 1;
+      setTimeout(()=>{ share(t); }, 1050);
     } else {
       state.stats.streak = 0;
-      toast(`The word was ${solution}`);
     }
     saveState(state);
     saveProgress();
-    setTimeout(()=>{ updateStats(); $("#statsDialog").showModal(); }, 1000);
+    setTimeout(()=>{ updateStats(); $("#statsDialog").showModal(); }, 1200);
+    inputLocked = false;
   }
 
   function lockGame(win) {
     // disable keyboard
-    keyboard.querySelectorAll(".key").forEach(k => k.disabled = true);
+    $$("#keyboard .key").forEach(k => k.disabled = true);
   }
 
   function saveProgress() {
@@ -372,7 +367,7 @@
       return fb.map(s => s==='correct'?'🟩':s==='present'?'🟨':'⬛').join('');
     }).join('\n');
     const idx = dailyIndex();
-    const header = `Wordle‑ish ${idx} ${tries}/6`;
+    const header = `Wordle-ish ${idx} ${tries}/6`;
     const text = `${header}\n${lines}`;
     if (navigator.share) {
       navigator.share({ text });
